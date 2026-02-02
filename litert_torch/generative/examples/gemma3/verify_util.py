@@ -255,6 +255,14 @@ def verify_gemma3(
             mask_cache_size=verifier.DEFAULT_KV_CACHE_MAX_LEN,
         )
     )
+  elif variant == "4b":
+    reauthored_model = UnifiedGemma3Wrapper(
+        gemma3.build_model_4b(
+            gemma3_model_path,
+            custom_loader,
+            mask_cache_size=verifier.DEFAULT_KV_CACHE_MAX_LEN,
+        )
+    )
   else:
     raise ValueError(f"Unsupported Gemma3 variant: {variant}")
 

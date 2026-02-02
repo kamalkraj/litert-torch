@@ -35,6 +35,8 @@ def main(_):
     model_builder = gemma3.build_model_1b
   elif _MODEL_SIZE.value == '270m':
     model_builder = gemma3.build_model_270m
+  elif _MODEL_SIZE.value == '4b':
+    model_builder = gemma3.build_model_4b
   else:
     raise ValueError(f'Unsupported model size: {_MODEL_SIZE.value}')
 

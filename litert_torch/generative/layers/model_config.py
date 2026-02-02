@@ -108,6 +108,8 @@ class AttentionConfig:
   num_query_groups: Optional[int]
   # Base of rotary positional embedding.
   rotary_base: int = 10_000
+  # Scaling factor for rotary positional embedding.
+  rotary_scaling_factor: float = 1.0
   # Percentage of Rotary Positional Embedding added Q and K projections.
   rotary_percentage: Optional[float] = None
   # Whether to use ALiBi positional encoding.

@@ -44,6 +44,7 @@ def build_rope(
     input_pos: torch.Tensor,
     n_elem: int,
     base: int = 10_000,
+    factor: float = 1.0,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
   """Computes rotary positional embedding cosine and sine tensors.
 
@@ -51,6 +52,7 @@ def build_rope(
     input_pos: the sequence indices for the query and key
     n_elem: number of elements of the head dimension for RoPE computation
     base: the base of the exponentiated value for RoPE.
+    factor: the scaling factor for RoPE.
 
   Returns:
     cos, sin tensors
@@ -63,9 +65,11 @@ def build_rope(
       n_elem // 2, dtype=torch.float32
   )
   timescale = float(base) ** freq_exponents
-  radians = input_pos.clone().unsqueeze(0).unsqueeze(-1) / timescale.unsqueeze(
-      0
-  ).unsqueeze(0)
+  radians = (
+      input_pos.clone().unsqueeze(0).unsqueeze(-1)
+      / factor
+      / timescale.unsqueeze(0).unsqueeze(0)
+  )
   cos = torch.cos(radians)
   sin = torch.sin(radians)
   return cos, sin

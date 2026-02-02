@@ -181,6 +181,26 @@ def build_model_1b(
   return model
 
 
+def build_model_4b(
+    checkpoint_path: str,
+    custom_loader: Callable[[str], Dict[str, torch.Tensor]] = None,
+    mask_cache_size: int = 0,
+) -> decoder.Decoder:
+  """Builds a Gemma3 4B model."""
+  if checkpoint_path:
+    model = decoder.build_model_4b(
+        checkpoint_path, custom_loader, mask_cache_size
+    )
+    if model is None:
+      raise ValueError(f"Failed to build model from checkpoint: {checkpoint_path}")
+  else:
+    config = decoder.get_decoder_config_4b()
+    model = decoder.Decoder(config, mask_cache_size)
+  # TODO: Load the parameters of decoder from checkpoint.
+  model.eval()
+  return model
+
+
 def build_model_270m(
     checkpoint_path: str,
     custom_loader: Callable[[str], Dict[str, torch.Tensor]] = None,
