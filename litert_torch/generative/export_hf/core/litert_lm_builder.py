@@ -118,7 +118,8 @@ def build_llm_metadata(
       if isinstance(gen_config.eos_token_id, int):
         stop_tokens.add(gen_config.eos_token_id)
       elif isinstance(gen_config.eos_token_id, list):
-        stop_tokens.update(gen_config.eos_token_id)
+        for token_id in gen_config.eos_token_id:
+          stop_tokens.add(token_id)
     elif hasattr(tokenizer, 'eos_token') and tokenizer.eos_token:
       stop_tokens.add(tokenizer.eos_token)
     for stop_token in stop_tokens:

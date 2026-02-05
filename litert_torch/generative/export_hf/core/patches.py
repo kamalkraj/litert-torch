@@ -60,3 +60,32 @@ original_use_kernel_forward_from_hub = (
 transformers.integrations.use_kernel_forward_from_hub = (
     _use_kernel_forward_from_hub
 )
+
+
+# TODO(weiyiw): Find a better way to patch Gemma3RMSNorm.
+class Gemma3RMSNorm(torch.nn.Module):
+  """RMSNorm Layer."""
+
+  def __init__(self, dim: int, eps: float = 1e-6):
+    """RMSNorm Layer."""
+    super().__init__()
+    self.weight = torch.nn.Parameter(torch.ones(dim))
+    self.variance_epsilon = eps
+    self.hidden_size = dim
+
+  def forward(self, hidden_states):
+    return normalization.rms_norm_with_hlfb(
+        hidden_states,
+        self.weight + 1.0,
+        self.variance_epsilon,
+        torch.ones((self.hidden_size,), dtype=torch.float32),
+    )
+
+  def extra_repr(self):
+    return f"{tuple(self.weight.shape)}, eps={self.variance_epsilon}"
+
+
+from transformers.models.gemma3 import modeling_gemma3
+
+original_gemma3_rms_norm = modeling_gemma3.Gemma3RMSNorm
+modeling_gemma3.Gemma3RMSNorm = Gemma3RMSNorm

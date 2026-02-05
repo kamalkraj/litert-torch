@@ -39,6 +39,7 @@ def export(
     # target_accelerator: str | None = None,
     trust_remote_code: bool = False,
     use_jinja_template: bool = False,
+    task: str = 'text_generation',
 ):
   """Exports HuggingFace Transformers model to tflite."""
   # TODO(weiyiw): Use tmp dir for work_dir.
@@ -48,6 +49,7 @@ def export(
       model,
       trust_remote_code=trust_remote_code,
       auto_model_override=auto_model_override,
+      task=task,
   )
   del config  # Unused.
   if split_cache and not externalize_embedder:

@@ -80,6 +80,7 @@ def load_model(
     model_path: str,
     trust_remote_code: bool = False,
     auto_model_override: str | None = None,
+    task: str = 'text_generation',
 ):
   """Loads model from checkpoint."""
 
@@ -90,7 +91,12 @@ def load_model(
   )
   config._attn_implementation = 'lrt_transposed_attention'  # pylint: disable=protected-access
 
-  auto_model_cls = transformers.AutoModelForCausalLM
+  if task == 'text_generation':
+    auto_model_cls = transformers.AutoModelForCausalLM
+  elif task == 'image_text_to_text':
+    auto_model_cls = transformers.AutoModelForImageTextToText
+  else:
+    raise ValueError(f'Unsupported task: {task}')
   if auto_model_override is not None:
     auto_model_cls = transformers.__dict__[auto_model_override]
 
@@ -101,14 +107,16 @@ def load_model(
       trust_remote_code=trust_remote_code,
   )
 
-  model.generation_config.cache_implementation = 'static'
-  model.generation_config.do_sample = False
+  if task == 'text_generation':
+    model.generation_config.cache_implementation = 'static'
+    model.generation_config.do_sample = False
 
   text_model_config = config
   if hasattr(config, 'text_config'):
     text_model_config = config.text_config
 
-  verify_model_compatibility(model, config, text_model_config)
+  if task == 'text_generation':
+    verify_model_compatibility(model, config, text_model_config)
 
   # TODO(weiyiw): Refactor into a separate function.
   tokenizer = transformers.AutoTokenizer.from_pretrained(model_path)
