@@ -59,6 +59,8 @@ class QuantizationName(str, enum.Enum):
   size of 32, better model quality but slower inference.
   dynamic_int4_block128: Dynamic range quantization with int4 weights and block
   size of 128, faster inference but worse model quality.
+  mixed: Mixed precision (e4_a8_f4_p4).
+  mixed_hq: High quality mixed precision (e8_a8_f4_p4).
   """
 
   NONE = 'none'
@@ -67,6 +69,8 @@ class QuantizationName(str, enum.Enum):
   FP16 = 'fp16'
   DYNAMIC_INT4_BLOCK32 = 'dynamic_int4_block32'
   DYNAMIC_INT4_BLOCK128 = 'dynamic_int4_block128'
+  MIXED = 'mixed'
+  MIXED_HQ = 'mixed_hq'
 
 
 def define_conversion_flags(
@@ -225,6 +229,10 @@ def get_quant_recipe_from_flag(
           weight_dtype=quant_attrs.Dtype.INT4,
           granularity=quant_attrs.Granularity.BLOCKWISE_128,
       )
+    case QuantizationName.MIXED:
+      return quant_recipes.mixed_precision_recipe(mcfg=model_config)
+    case QuantizationName.MIXED_HQ:
+      return quant_recipes.mixed_precision_hq_recipe(mcfg=model_config)
     case _:
       raise ValueError(f'Unsupported quantization flag: {quantize}')
 
@@ -254,6 +262,10 @@ def create_quantize_suffix(quantize: str) -> str:
       return 'q4_block32'
     case QuantizationName.DYNAMIC_INT4_BLOCK128:
       return 'q4_block128'
+    case QuantizationName.MIXED:
+      return 'qmixed'
+    case QuantizationName.MIXED_HQ:
+      return 'qmixed_hq'
     case _:
       raise ValueError(f'Unsupported quantization flag: {quantize}')
 

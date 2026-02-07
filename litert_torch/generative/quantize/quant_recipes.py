@@ -74,3 +74,48 @@ def full_fp16_recipe(
           _model_config=mcfg,
       )
   )
+
+
+def mixed_precision_recipe(
+    mcfg: model_config.ModelConfig | None = None,
+) -> quant_config.QuantConfig:
+  """Creates a mixed precision recipe (e4_a8_f4_p4).
+
+  Embeddings, Feedforward, and Projections: INT4 (Blockwise 32)
+  Attention: INT8 (Channelwise)
+  """
+  return quant_config.QuantConfig(
+      generative_recipe=quant_recipe.GenerativeQuantRecipe(
+          default=quant_recipe_utils.create_layer_quant_dynamic(
+              quant_attrs.Dtype.INT4, quant_attrs.Granularity.BLOCKWISE_32
+          ),
+          attention=quant_recipe_utils.create_layer_quant_dynamic(
+              quant_attrs.Dtype.INT8, quant_attrs.Granularity.CHANNELWISE
+          ),
+          _model_config=mcfg,
+      )
+  )
+
+
+def mixed_precision_hq_recipe(
+    mcfg: model_config.ModelConfig | None = None,
+) -> quant_config.QuantConfig:
+  """Creates a high-quality mixed precision recipe (e8_a8_f4_p4).
+
+  Feedforward and Projections: INT4 (Blockwise 32)
+  Embeddings and Attention: INT8 (Channelwise)
+  """
+  return quant_config.QuantConfig(
+      generative_recipe=quant_recipe.GenerativeQuantRecipe(
+          default=quant_recipe_utils.create_layer_quant_dynamic(
+              quant_attrs.Dtype.INT4, quant_attrs.Granularity.BLOCKWISE_32
+          ),
+          embedding=quant_recipe_utils.create_layer_quant_dynamic(
+              quant_attrs.Dtype.INT8, quant_attrs.Granularity.CHANNELWISE
+          ),
+          attention=quant_recipe_utils.create_layer_quant_dynamic(
+              quant_attrs.Dtype.INT8, quant_attrs.Granularity.CHANNELWISE
+          ),
+          _model_config=mcfg,
+      )
+  )

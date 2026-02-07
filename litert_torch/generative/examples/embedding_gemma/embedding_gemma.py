@@ -22,7 +22,7 @@ from litert_torch.generative.layers import builder
 from litert_torch.generative.layers import model_config as cfg
 import safetensors.torch as safetensors_torch
 import torch
-from torch import nn
+from torch import embedding, nn
 
 
 # Weight loading constants
@@ -263,8 +263,8 @@ class EmbeddingGemma(nn.Module):
     pooled_x = self.dense2(pooled_x)
 
     # L2 normalization
-    embedding = torch.nn.functional.normalize(pooled_x, p=2, dim=1)
-    return embedding
+    # embedding = torch.nn.functional.normalize(pooled_x, p=2, dim=1)
+    return pooled_x
 
 
 def get_model_config() -> cfg.ModelConfig:

@@ -42,7 +42,7 @@ def verify_embedding_gemma_300m(
   print(f"Loading the original model from: {model_path}")
   tokenizer = transformers.AutoTokenizer.from_pretrained(model_path)
   try:
-    original_model = SentenceTransformer(model_path)
+    original_model = SentenceTransformer(model_path, device="cpu")
     original_model.eval()
   except Exception as e:  # pylint: disable=broad-except
     print(f"Failed to load original model: {e}")
@@ -92,14 +92,18 @@ def verify_embedding_gemma_300m(
     original_embedding = final_original_output["sentence_embedding"]
 
     # Get embeddings from the reauthored model.
-    reauthored_embedding = reauthored_model(
+    reauthored_embedding_raw = reauthored_model(
         tokens, attention_mask=attention_mask
+    )
+    reauthored_embedding = torch.nn.functional.normalize(
+        reauthored_embedding_raw, p=2, dim=1
     )
 
   print(f"Original embedding shape: {original_embedding.shape}")
-  print(f"Reauthored embedding shape: {reauthored_embedding.shape}")
+  print(f"Reauthored embedding shape (raw): {reauthored_embedding_raw.shape}")
   print(f"Original embedding norm: {torch.norm(original_embedding)}")
-  print(f"Reauthored embedding norm: {torch.norm(reauthored_embedding)}")
+  print(f"Reauthored embedding norm (raw): {torch.norm(reauthored_embedding_raw)}")
+  print(f"Reauthored embedding norm (normalized): {torch.norm(reauthored_embedding)}")
 
   if not torch.allclose(original_embedding, reauthored_embedding, atol=atol):
     print("Verification failed: Final outputs do not match!")
