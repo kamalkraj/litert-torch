@@ -16,6 +16,8 @@
 
 import os
 
+from litert_torch.generative.export_hf.core import export_lib
+
 from ai_edge_litert.internal import litertlm_builder
 from ai_edge_litert.internal import llm_metadata_pb2
 from ai_edge_litert.internal import llm_model_type_pb2
@@ -96,8 +98,10 @@ def parse_chat_template(tokenizer):
 def build_llm_metadata(
     model,
     tokenizer,
+    image_processor,
     chat_templates: tuple[tuple, tuple, tuple] | str,  # pylint: disable=g-bare-generic,
     context_length: int,
+    exported_model_artifacts: export_lib.ExportedModelArtifacts,
     litert_lm_model_type_override: str | None = None,
 ):
   """Builds LLM metadata."""
@@ -165,9 +169,7 @@ def build_llm_metadata(
   match (model_type):
     case 'qwen3':
       llm_metadata.llm_model_type.CopyFrom(
-          llm_model_type_pb2.LlmModelType(
-              qwen3=llm_model_type_pb2.Qwen3()
-          )
+          llm_model_type_pb2.LlmModelType(qwen3=llm_model_type_pb2.Qwen3())
       )
     case ('qwen2' | 'qwen2p5'):
       llm_metadata.llm_model_type.CopyFrom(
@@ -200,13 +202,37 @@ def build_llm_metadata(
           )
       )
 
+  # Hack for multimodal. Currently LiteRT-LM only have Gemma3N as multimodal.
+  if exported_model_artifacts.vision_encoder_model_path:
+    # The followings are Gemma3 specific.
+    # TODO(weiyiw): Refactor to support other multimodal models.
+    if not hasattr(tokenizer, 'special_tokens_map'):
+      raise ValueError('Tokenizer does not have special_tokens_map.')
+    token_map = tokenizer.special_tokens_map
+    boi_token = token_map.get('boi_token', '')
+    eoi_token = token_map.get('eoi_token', '')
+    llm_metadata.llm_model_type.CopyFrom(
+        llm_model_type_pb2.LlmModelType(gemma3n=llm_model_type_pb2.Gemma3N())
+    )
+    llm_metadata.llm_model_type.gemma3n.start_of_image_token.token_str = (
+        boi_token
+    )
+    llm_metadata.llm_model_type.gemma3n.end_of_image_token.token_str = eoi_token
+    llm_metadata.llm_model_type.gemma3n.image_tensor_height = (
+        image_processor.size['height']
+    )
+    llm_metadata.llm_model_type.gemma3n.image_tensor_width = (
+        image_processor.size['width']
+    )
+
   return llm_metadata
 
 
 def pack_to_litert_lm(
     model,
     tokenizer,
-    tflite_model_path: str,
+    image_processor,
+    exported_model_artifacts: export_lib.ExportedModelArtifacts,
     tokenizer_model_path: str,
     cache_length: int,
     work_dir: str,
@@ -222,7 +248,12 @@ def pack_to_litert_lm(
   if not chat_templates:
     print('WARNING: Chat template is not found. Using empty template.')
   llm_metadata = build_llm_metadata(
-      model, tokenizer, chat_templates, cache_length,
+      model,
+      tokenizer,
+      image_processor,
+      chat_templates,
+      cache_length,
+      exported_model_artifacts,
       litert_lm_model_type_override,
   )
   llm_metadata_path = os.path.join(work_dir, 'llm_metadata.pb')
@@ -243,8 +274,29 @@ def pack_to_litert_lm(
   else:
     builder.add_sentencepiece_tokenizer(tokenizer_model_path)
   builder.add_tflite_model(
-      tflite_model_path, litertlm_builder.TfLiteModelType.PREFILL_DECODE
+      exported_model_artifacts.prefill_decode_model_path,
+      litertlm_builder.TfLiteModelType.PREFILL_DECODE,
   )
+  if exported_model_artifacts.embedder_model_path:
+    builder.add_tflite_model(
+        exported_model_artifacts.embedder_model_path,
+        litertlm_builder.TfLiteModelType.EMBEDDER,
+    )
+  if exported_model_artifacts.vision_encoder_model_path:
+    builder.add_tflite_model(
+        exported_model_artifacts.vision_encoder_model_path,
+        litertlm_builder.TfLiteModelType.VISION_ENCODER,
+    )
+  if exported_model_artifacts.vision_adapter_model_path:
+    builder.add_tflite_model(
+        exported_model_artifacts.vision_adapter_model_path,
+        litertlm_builder.TfLiteModelType.VISION_ADAPTER,
+    )
+  if exported_model_artifacts.auxiliary_model_path:
+    builder.add_tflite_model(
+        exported_model_artifacts.auxiliary_model_path,
+        litertlm_builder.TfLiteModelType.AUX,
+    )
   with open(os.path.join(output_dir, 'model.litertlm'), 'wb') as f:
     builder.build(f)
 
@@ -252,7 +304,8 @@ def pack_to_litert_lm(
 def package_model(
     model,
     tokenizer,
-    tflite_model_path: str,
+    image_processor,
+    exported_model_artifacts: export_lib.ExportedModelArtifacts,
     tokenizer_model_path: str,
     cache_length: int,
     work_dir: str,
@@ -264,7 +317,8 @@ def package_model(
   pack_to_litert_lm(
       model,
       tokenizer,
-      tflite_model_path,
+      image_processor,
+      exported_model_artifacts,
       tokenizer_model_path,
       cache_length,
       work_dir,

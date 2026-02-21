@@ -55,6 +55,17 @@ class SourceModelArtifacts:
   image_processor: transformers.AutoImageProcessor | None = None
 
 
+@dataclasses.dataclass
+class ExportedModelArtifacts:
+  """Exported model artifacts."""
+
+  prefill_decode_model_path: str
+  embedder_model_path: str | None = None
+  vision_encoder_model_path: str | None = None
+  vision_adapter_model_path: str | None = None
+  auxiliary_model_path: str | None = None
+
+
 def verify_model_compatibility(model, model_config, text_model_config):
   """Verifies model compatibility."""
   del model_config  # Unused.

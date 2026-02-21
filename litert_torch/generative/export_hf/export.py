@@ -126,7 +126,7 @@ def export(
       if split_cache
       else 'LiteRTLMCache',
   )
-  export_lib.export_text_prefill_decode_model(
+  prefill_decode_model_path = export_lib.export_text_prefill_decode_model(
       pt_model,
       text_model_config,
       export_config,
@@ -134,9 +134,12 @@ def export(
       quantization_recipe,
       experimental_use_mixed_precision=experimental_use_mixed_precision,
   )
+  exported_model_artifacts = export_lib.ExportedModelArtifacts(
+      prefill_decode_model_path=prefill_decode_model_path,
+  )
   if export_vision_encoder:
     # TODO(weiyiw): Add support for packaging vision encoder models.
-    export_lib.export_vision_encoder_models(
+    vision_models = export_lib.export_vision_encoder_models(
         pt_model,
         image_processor,
         config,
@@ -145,38 +148,40 @@ def export(
         work_dir,
         vision_encoder_quantization_recipe or quantization_recipe,
     )
+    exported_model_artifacts.vision_encoder_model_path = (
+        vision_models[0]
+    )
+    exported_model_artifacts.vision_adapter_model_path = (
+        vision_models[1]
+    )
   gc.collect()
   if externalize_embedder:
-    export_lib.export_embedder_model(
+    embedder_model_path = export_lib.export_embedder_model(
         pt_model,
         text_model_config,
         export_config,
         work_dir,
         quantization_recipe,
     )
+    exported_model_artifacts.embedder_model_path = embedder_model_path
   gc.collect()
   if split_cache:
-    export_lib.export_auxiliary_model(
+    auxiliary_model_path = export_lib.export_auxiliary_model(
         pt_model,
         text_model_config,
         export_config,
         work_dir,
         quantization_recipe,
     )
+    exported_model_artifacts.auxiliary_model_path = auxiliary_model_path
   gc.collect()
   tokenizer_model_path = export_lib.export_tokenizer(tokenizer, work_dir)
-  tflite_model_path = os.path.join(
-      work_dir,
-      'model_quantized.tflite' if quantization_recipe else 'model.tflite',
-  )
-  if externalize_embedder or split_cache or export_vision_encoder:
-    # TODO(weiyiw): Add support for packaging models.
-    return
   if bundle_litert_lm:
     litert_lm_builder.package_model(
         pt_model,
         tokenizer,
-        tflite_model_path,
+        image_processor,
+        exported_model_artifacts,
         tokenizer_model_path,
         cache_length,
         work_dir,
@@ -184,6 +189,6 @@ def export(
         use_jinja_template,
         litert_lm_model_type_override,
     )
-  if not keep_temporary_files:
+  if not keep_temporary_files and not split_cache:
     print(f'Removing temporary files from: {work_dir}')
     shutil.rmtree(work_dir)
