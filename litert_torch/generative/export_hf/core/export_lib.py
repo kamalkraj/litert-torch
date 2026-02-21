@@ -35,6 +35,7 @@ from litert_torch.generative.export_hf.core.mu import mu_pass_lib
 from litert_torch.generative.export_hf.core.split_cache import attention as _
 from litert_torch.generative.export_hf.core.split_cache import exportable_module as split_cache_module
 from litert_torch.generative.export_hf.model_ext import exportables as model_ext_exportables
+from litert_torch.generative.export_hf.model_ext import patches as model_ext_patches
 from litert_torch.generative.tools import tokenizer_to_sentencepiece_lib as tokenizer_lib
 import torch
 import transformers
@@ -126,12 +127,13 @@ def load_model(
   if auto_model_override is not None:
     auto_model_cls = transformers.__dict__[auto_model_override]
 
-  model = auto_model_cls.from_pretrained(
-      model_path,
-      config=config,
-      torch_dtype=torch.float32,
-      trust_remote_code=trust_remote_code,
-  )
+  with model_ext_patches.get_patch_context(config.model_type):
+    model = auto_model_cls.from_pretrained(
+        model_path,
+        config=config,
+        torch_dtype=torch.float32,
+        trust_remote_code=trust_remote_code,
+    )
 
   if task == 'text_generation':
     model.generation_config.cache_implementation = 'static'

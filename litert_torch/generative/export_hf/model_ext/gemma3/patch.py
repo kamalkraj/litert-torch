@@ -1,4 +1,4 @@
-# Copyright 2025 The LiteRT Torch Authors.
+# Copyright 2026 The LiteRT Torch Authors.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,28 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Patches for transformers."""
+"""Patches for Gemma3."""
 
-
+import contextlib
+from litert_torch.generative.export_hf.model_ext import patches as patches_lib
 from litert_torch.generative.layers import normalization
 import torch
-import transformers
+from transformers.models.gemma3 import modeling_gemma3
 
 
-class RMSNorm(torch.nn.Module):
+class Gemma3RMSNorm(torch.nn.Module):
   """RMSNorm Layer."""
 
-  def __init__(self, hidden_size, eps=1e-6):
+  def __init__(self, dim: int, eps: float = 1e-6):
     """RMSNorm Layer."""
     super().__init__()
-    self.weight = torch.nn.Parameter(torch.ones(hidden_size))
+    self.weight = torch.nn.Parameter(torch.ones(dim))
     self.variance_epsilon = eps
-    self.hidden_size = hidden_size
+    self.hidden_size = dim
 
   def forward(self, hidden_states):
     return normalization.rms_norm_with_hlfb(
         hidden_states,
-        self.weight,
+        self.weight + 1.0,
         self.variance_epsilon,
         torch.ones((self.hidden_size,), dtype=torch.float32),
     )
@@ -42,21 +43,14 @@ class RMSNorm(torch.nn.Module):
     return f"{tuple(self.weight.shape)}, eps={self.variance_epsilon}"
 
 
-# TODO(weiyiw): Add model specific patches to cover more models.
-def _use_kernel_forward_from_hub(layer_name):
+@patches_lib.register_patch(["gemma3", "gemma3_text"])
+@contextlib.contextmanager
+def gemma3_litert_patch():
+  print("Gemma3 patch applied.")
+  original_norm = modeling_gemma3.Gemma3RMSNorm
+  modeling_gemma3.Gemma3RMSNorm = Gemma3RMSNorm
 
-  def decorator(cls):
-    if layer_name == "RMSNorm":
-      return RMSNorm
-    return cls
-
-  return decorator
-
-
-original_use_kernel_forward_from_hub = (
-    transformers.integrations.use_kernel_forward_from_hub
-)
-
-transformers.integrations.use_kernel_forward_from_hub = (
-    _use_kernel_forward_from_hub
-)
+  try:
+    yield
+  finally:
+    modeling_gemma3.Gemma3RMSNorm = original_norm
