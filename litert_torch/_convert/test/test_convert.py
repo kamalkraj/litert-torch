@@ -15,11 +15,9 @@
 """Tests for litert_torch.convert."""
 
 import dataclasses
-import os
 from typing import Tuple
 
 import litert_torch
-from litert_torch._convert import conversion_utils
 from litert_torch.quantize import pt2e_quantizer
 from litert_torch.testing import model_coverage
 import numpy as np
@@ -225,52 +223,6 @@ class TestConvert(googletest.TestCase):
     )
     self.assertTrue(result)
 
-  def test_apply_tfl_converter_flags(self):
-    """Tests if _apply_tfl_converter_flags correctly sets the values in a Converter object."""
-
-    class MockConverterInternalObject:
-
-      def __init__(self):
-        self.subkey2 = "original_subvalue2"
-
-    class MockConverter:
-
-      def __init__(self):
-        self.key1 = "original_value1"
-        self.key2 = MockConverterInternalObject()
-
-    mock_converter = MockConverter()
-    flags = {"key1": "new_value1", "key2": {"subkey2": "new_subvalue2"}}
-    conversion_utils.apply_tfl_converter_flags(mock_converter, flags)
-
-    self.assertTrue(flags["key1"], "new_value1")
-    self.assertTrue(flags["key2"]["subkey2"], "new_subvalue2")
-
-  def test_convert_add_converter_flags(self):
-    """Tests conversion of an add module setting a tflite converter flag."""
-
-    class Add(nn.Module):
-
-      def forward(self, a, b):
-        return a + b
-
-    args = (
-        torch.randn((5, 10)),
-        torch.randn((5, 10)),
-    )
-    torch_module = Add().eval()
-
-    tmp_dir_path = self.create_tempdir()
-    ir_dump_path = os.path.join(
-        tmp_dir_path, "test_convert_add_converter_flags_mlir_dump"
-    )
-    litert_torch.convert(
-        torch_module,
-        args,
-        _ai_edge_converter_flags={"ir_dump_dir": ir_dump_path},
-    )
-    self.assertTrue(os.path.isdir(ir_dump_path))
-
   def test_convert_conv_transpose_batch_norm(self):
     """Tests conversion of a model with ConvTranspose2d and BatchNorm2d."""
 
@@ -291,40 +243,6 @@ class TestConvert(googletest.TestCase):
         edge_model, torch_model, sample_input
     )
     self.assertTrue(result)
-
-  @googletest.skipIf(
-      not litert_torch.config.use_torch_xla,
-      reason="Shape polymorphism is not yet support with odml_torch.",
-  )
-  def test_convert_model_with_dynamic_batch(self):
-    """Test converting a simple model with dynamic batch size."""
-
-    class SampleModel(nn.Module):
-
-      def __init__(self):
-        super().__init__()
-        self.w = torch.ones((10, 10)) * 2.7
-
-      def forward(self, x, y):
-        return x + y + self.w
-
-    sample_input = (torch.randn(4, 3, 10, 10), torch.randn(4, 3, 10, 10))
-    batch = torch.export.Dim("batch")
-    dynamic_shapes = ({0: batch}, {0: batch})
-
-    model = SampleModel().eval()
-    edge_model = litert_torch.convert(
-        model, sample_input, dynamic_shapes=dynamic_shapes
-    )
-
-    for batch_size in [2, 4, 10]:
-      validate_input = (
-          torch.randn(batch_size, 3, 10, 10),
-          torch.randn(batch_size, 3, 10, 10),
-      )
-      self.assertTrue(
-          model_coverage.compare_tflite_torch(edge_model, model, validate_input)
-      )
 
   def test_convert_model_with_kwargs(self):
     """Test converting a simple model with sample_kwargs."""
@@ -470,7 +388,7 @@ class TestConvert(googletest.TestCase):
     np.testing.assert_almost_equal(edge_output["y_data_2_1"], args[2])
 
     interpreter = tfl_interpreter.Interpreter(
-        model_content=edge_model._tflite_model
+        model_content=edge_model.model_content()
     )
     runner = interpreter.get_signature_runner("serving_default")
     output_details = runner.get_output_details()
@@ -483,7 +401,7 @@ class TestConvert(googletest.TestCase):
     model.eval()
     edge_model = litert_torch.convert(model, args, kwargs)
     interpreter = tfl_interpreter.Interpreter(
-        model_content=edge_model._tflite_model
+        model_content=edge_model.model_content()
     )
     runner = interpreter.get_signature_runner("serving_default")
     input_details = runner.get_input_details()
@@ -671,6 +589,37 @@ class TestConvert(googletest.TestCase):
     except Exception as err:
       self.fail(f"Conversion failed with 6d inputs for strided_slice: {err}")
     # pylint: enable=broad-except
+
+  @googletest.skipIf(
+      litert_torch.config.in_oss,
+      "wait until converter next is completely OSS ready.",
+  )
+  def test_convert_large_model_with_lightweight_conversion(self):
+    """Test converting a simple model with large lazy constants."""
+
+    class SampleModel(nn.Module):
+
+      def __init__(self):
+        super().__init__()
+        self.weights = [torch.randn(32 * 1024 * 1024) for _ in range(3)]
+
+      def forward(self, x):
+        for w in self.weights:
+          x = torch.sin(x * w)
+        return x
+
+    model = SampleModel().eval()
+    args = (torch.randn(1),)
+    try:
+      em = litert_torch.convert(model, args, lightweight_conversion=True)
+    except Exception as err:
+      self.fail(f"Conversion failed with large lazy constants: {err}")
+
+    np.testing.assert_allclose(
+        em(args[0]),
+        model(args[0]).detach().numpy(),
+        atol=1e-4,
+    )
 
   def test_compile_model(self):
     """Tests AOT compilation of a simple Add module."""

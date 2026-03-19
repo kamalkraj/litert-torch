@@ -12,11 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-r"""Exporting HF LLM model to LiteRT-LM file.
-"""
+r"""Exporting HF LLM model to LiteRT-LM file."""
 
-from litert_torch.generative.export_hf import export as lib
 import fire
+from litert_torch.generative.export_hf import export as lib
 
 
 # Thing to do:

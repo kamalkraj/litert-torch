@@ -42,6 +42,8 @@ def scaled_dot_product_attention_transposed(
     key: Key tensor, with shape [B, T, KV_LEN, H].
     value: Value tensor, with shape [B, T, H, KV_LEN].
     head_size (int): head dimension.
+    k_ts_idx (int): the index of time step dimension in the key tensor.
+    v_ts_idx (int): the index of time step dimension in the value tensor.
     mask (torch.Tensor): the optional mask tensor.
     scale (float): the optional scale factor.
     softcap (float): the optional softcap for the logits.
@@ -71,15 +73,20 @@ def scaled_dot_product_attention_transposed(
     bmm_fn = lambda x, y: torch.einsum("abth,abhs->abts", x, y)
   logits = bmm_fn(query, key)
 
-  _, bk, gt, s = logits.shape
+  _, _, gt, _ = logits.shape
   g = gt // t
-  logits = logits.reshape((bk, g, t, s))
   if softcap is not None:
     logits = torch.tanh(logits / softcap)
     logits = logits * softcap
 
+  # broadcasting mask
+  if g != 1:
+    mask_to_bc = []
+    for _ in range(g):
+      mask_to_bc.append(mask)
+    mask = torch.cat(mask_to_bc, dim=-2)  # 1, 1, gt, s
+
   padded_logits = logits + mask
-  padded_logits = padded_logits.reshape(1, bk, gt, s)
   probs = F.softmax(padded_logits, dim=-1).type_as(key)
   if v_ts_idx == 3:
     bmm_fn = bmm_lib.bmm_4d

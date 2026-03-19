@@ -43,7 +43,7 @@ class ExportableModuleBase(torch.nn.Module, abc.ABC):
 
   @abc.abstractmethod
   def get_sample_inputs(
-      self, model_config
+      self, model_config, **kwargs
   ) -> dict[str, tuple[dict[str, torch.Tensor], dict[str, torch.export.Dim]]]:
     """Returns the sample inputs for the model."""
     ...
@@ -113,7 +113,12 @@ class LiteRTExportableModuleForDecoderOnlyLM(ExportableModuleBase):
     num_layers = model_config.num_hidden_layers
     kv_cache = kv_cache_lib.CACHE_REGISTRY[
         export_config.cache_implementation
-    ].create_from_config(model_config, export_config)
+    ].create_from_config(
+        model_config,
+        export_config,
+        batch_size=export_config.batch_size,
+        cache_length=export_config.cache_length,
+    )
     inputs = {"kv_cache": kv_cache}
     if export_config.cache_length_dim is not None:
       all_k_shapes = tuple(
@@ -162,7 +167,7 @@ class LiteRTExportableModuleForDecoderOnlyLMPrefill(
     )
     return tokens, tokens_dynamic_shape
 
-  def get_sample_inputs(self, model_config):
+  def get_sample_inputs(self, model_config, **kwargs):
     export_config = self.export_config
     kv_cache_inputs, kv_cache_dynamic_shapes = self.get_sample_kv_cache(
         model_config

@@ -43,7 +43,7 @@ class LiteRTSplitCacheExportableModuleForDecoderOnlyLM(
       mask_local = None
     pos_emb_cos = pos_emb['cos']
     pos_emb_sin = pos_emb['sin']
-    if 'pos_emb_local_cos' in pos_emb:
+    if 'local_cos' in pos_emb:
       pos_emb_local_cos = pos_emb['local_cos']
       pos_emb_local_sin = pos_emb['local_sin']
     else:
@@ -51,7 +51,7 @@ class LiteRTSplitCacheExportableModuleForDecoderOnlyLM(
       pos_emb_local_sin = None
     sliding_window = getattr(self.model.config, 'sliding_window', None)
 
-    if sliding_window is not None and self.experimental_pass_mask_dict:
+    if sliding_window is not None:
       masks = {
           'full_attention': mask_global,
       }
@@ -172,6 +172,7 @@ class LiteRTSplitCacheExportableModuleForDecoderOnlyLMPrefill(
   def get_sample_inputs(
       self,
       model_config,
+      **kwargs,
   ):
     export_config = self.export_config
     kv_cache_inputs, _ = self.get_sample_kv_cache(model_config)
@@ -218,6 +219,7 @@ class LiteRTSplitCacheExportableModuleForDecoderOnlyLMGenerate(
   def get_sample_inputs(
       self,
       model_config,
+      **kwargs,
   ):
     export_config = self.export_config
     kv_cache_inputs, _ = self.get_sample_kv_cache(model_config)
@@ -271,7 +273,7 @@ class SplitAttentionMaskBuilder(nn.Module):
 
     if len(local_masks) == 1:
       local_masks = list(local_masks.values())[0]
-    elif not local_masks:
+    elif not len(local_masks):
       local_masks = None
     return {
         'mask': attention_mask.SplitMask(

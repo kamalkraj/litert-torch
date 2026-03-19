@@ -32,6 +32,7 @@ class LiteRTExportableModuleForDecoderOnlyLMPrefillExternalEmbedder(
       mask,
   ):
     inputs = self.adapt_inputs(None, embeddings, input_pos, kv_cache, mask)
+    inputs |= self.attention_kwargs()
     output = self.model(**inputs)
     return {"kv_cache": output.past_key_values}
 
@@ -64,6 +65,7 @@ class LiteRTExportableModuleForDecoderOnlyLMGenerateExternalEmbedder(
       mask,
   ):
     inputs = self.adapt_inputs(None, embeddings, input_pos, kv_cache, mask)
+    inputs |= self.attention_kwargs()
     output = self.model(**inputs)
     return {"kv_cache": output.past_key_values, "logits": output.logits}
 
@@ -100,8 +102,10 @@ class LiteRTExportableModuleForEmbedder(torch.nn.Module):
       cls,
       model_config,
       export_config: base_exportable_module.ExportableModuleConfig,
+      **kwargs,
   ):
     """Gets sample inputs."""
+    del kwargs  # Unused.
     batch_size = export_config.batch_size
     prefill_length = export_config.prefill_lengths[0]
     prefill_length_dim = export_config.prefill_length_dim

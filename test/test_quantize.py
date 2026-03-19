@@ -14,9 +14,6 @@
 # ==============================================================================
 """Tests for the quantizer."""
 
-import os
-import tempfile
-
 import litert_torch
 from litert_torch.quantize import pt2e_quantizer
 from litert_torch.quantize import quant_config
@@ -60,21 +57,14 @@ class TestQuantizerSanityBasic(googletest.TestCase):
         quant_config=quant_config.QuantConfig(pt2e_quantizer=quantizer),
     )
 
-    with tempfile.TemporaryDirectory() as tmp_dir_name:
-      without_quantizer_path = os.path.join(
-          tmp_dir_name, "without_quantizer.model"
-      )
-      with_quantizer_path = os.path.join(tmp_dir_name, "with_quantizer.model")
-      without_quantizer.export(without_quantizer_path)
-      with_quantizer.export(with_quantizer_path)
-      without_quantizer_size = os.stat(with_quantizer_path).st_size
-      with_quantizer_size = os.stat(without_quantizer_path).st_size
+    without_quantizer_size = len(without_quantizer.model_content())
+    with_quantizer_size = len(with_quantizer.model_content())
 
-      self.assertNotEqual(
-          with_quantizer_size,
-          without_quantizer_size,
-          "Quantized model size is expected to differ from unquantized's.",
-      )
+    self.assertNotEqual(
+        with_quantizer_size,
+        without_quantizer_size,
+        "Quantized model size is expected to differ from unquantized's.",
+    )
 
 
 if __name__ == "__main__":
